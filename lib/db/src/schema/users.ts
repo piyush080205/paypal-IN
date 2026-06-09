@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,6 +10,8 @@ export const usersTable = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   phone: text("phone"),
   balance: numeric("balance", { precision: 12, scale: 2 }).notNull().default("1000.00"),
+  isAdmin: boolean("is_admin").notNull().default(false),
+  isSuspended: boolean("is_suspended").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

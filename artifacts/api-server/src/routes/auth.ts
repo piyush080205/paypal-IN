@@ -7,6 +7,19 @@ import { signToken, requireAuth, getAuthUser } from "../lib/auth";
 
 const router = Router();
 
+function formatUser(user: typeof usersTable.$inferSelect) {
+  return {
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    phone: user.phone,
+    balance: parseFloat(user.balance),
+    isAdmin: user.isAdmin,
+    createdAt: user.createdAt,
+  };
+}
+
 router.post("/auth/register", async (req, res): Promise<void> => {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
@@ -30,19 +43,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     .returning();
 
   const token = signToken(user.id);
-
-  res.status(201).json({
-    user: {
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone,
-      balance: parseFloat(user.balance),
-      createdAt: user.createdAt,
-    },
-    token,
-  });
+  res.status(201).json({ user: formatUser(user), token });
 });
 
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -66,20 +67,13 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
-  const token = signToken(user.id);
+  if (user.isSuspended) {
+    res.status(403).json({ error: "Your account has been suspended. Please contact support." });
+    return;
+  }
 
-  res.json({
-    user: {
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone,
-      balance: parseFloat(user.balance),
-      createdAt: user.createdAt,
-    },
-    token,
-  });
+  const token = signToken(user.id);
+  res.json({ user: formatUser(user), token });
 });
 
 router.post("/auth/logout", (_req, res): void => {
@@ -88,15 +82,7 @@ router.post("/auth/logout", (_req, res): void => {
 
 router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   const user = getAuthUser(req);
-  res.json({
-    id: user.id,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-    phone: user.phone,
-    balance: parseFloat(user.balance),
-    createdAt: user.createdAt,
-  });
+  res.json(formatUser(user));
 });
 
 export default router;

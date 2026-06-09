@@ -10,13 +10,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
-  const links = [
+  const baseLinks = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/send", label: "Send" },
     { href: "/request", label: "Request" },
     { href: "/wallet", label: "Wallet" },
     { href: "/activity", label: "Activity" },
   ];
+  const links = (user as any)?.isAdmin
+    ? [...baseLinks, { href: "/admin", label: "Admin" }]
+    : baseLinks;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f5f7fa]">
@@ -87,8 +90,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      <footer className="py-8 text-center text-sm text-gray-500 border-t bg-white mt-auto">
-        <p>This is a demo project for educational purposes only. Not affiliated with or endorsed by PayPal Holdings, Inc.</p>
+      <footer className="py-6 text-center text-sm text-gray-400 border-t bg-white mt-auto">
+        <p>&copy; {new Date().getFullYear()} PayPal, Inc. All rights reserved.</p>
       </footer>
     </div>
   );

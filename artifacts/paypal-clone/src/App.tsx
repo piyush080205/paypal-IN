@@ -18,6 +18,7 @@ import TransactionDetail from "@/pages/transaction-detail";
 import Wallet from "@/pages/wallet";
 import Requests from "@/pages/requests";
 import Profile from "@/pages/profile";
+import Admin from "@/pages/admin";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,7 @@ function Router() {
       <Route path="/wallet" component={() => <ProtectedRoute component={Wallet} />} />
       <Route path="/requests" component={() => <ProtectedRoute component={Requests} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
+      <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
       
       <Route component={NotFound} />
     </Switch>
