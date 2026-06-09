@@ -76,9 +76,6 @@
   },
 
   "devDependencies": {
-    "@replit/vite-plugin-cartographer": "latest",
-    "@replit/vite-plugin-dev-banner": "latest",
-    "@replit/vite-plugin-runtime-error-modal": "latest",
 
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "latest",
