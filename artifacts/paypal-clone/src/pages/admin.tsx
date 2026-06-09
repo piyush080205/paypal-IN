@@ -14,7 +14,7 @@ import { format } from "date-fns";
 import {
   Search, Users, ArrowLeftRight, DollarSign, ShieldAlert,
   Trash2, Edit2, Check, X, ShieldCheck, RotateCcw, CheckCircle,
-  AlertCircle, Clock, XCircle,
+  AlertCircle, Clock, XCircle, Plus,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -40,6 +40,12 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
     throw new Error(data.error || `HTTP ${res.status}`);
   }
   return res.json();
+}
+
+function nowLocal() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 16);
 }
 
 function StatCard({ label, value, icon: Icon, color }: { label: string; value: string | number; icon: any; color: string }) {
@@ -70,10 +76,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 function DisputeStatus({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
-    open:         { label: "Open",         cls: "bg-blue-100 text-blue-700",   icon: <AlertCircle size={11} /> },
+    open:         { label: "Open",         cls: "bg-blue-100 text-blue-700",     icon: <AlertCircle size={11} /> },
     under_review: { label: "Under Review", cls: "bg-yellow-100 text-yellow-700", icon: <Clock size={11} /> },
-    resolved:     { label: "Resolved",     cls: "bg-green-100 text-green-700", icon: <CheckCircle size={11} /> },
-    closed:       { label: "Closed",       cls: "bg-gray-100 text-gray-500",   icon: <XCircle size={11} /> },
+    resolved:     { label: "Resolved",     cls: "bg-green-100 text-green-700",   icon: <CheckCircle size={11} /> },
+    closed:       { label: "Closed",       cls: "bg-gray-100 text-gray-500",     icon: <XCircle size={11} /> },
   };
   const c = map[status] || map.open;
   return (
@@ -89,8 +95,32 @@ function TxStatusBadge({ status }: { status: string }) {
     pending:   "bg-yellow-100 text-yellow-700",
     declined:  "bg-red-100 text-red-700",
   };
-  return <Badge className={`${map[status] || ""} border-none text-xs`}>{status}</Badge>;
+  return <Badge className={`${map[status] || ""} border-none text-xs capitalize`}>{status}</Badge>;
 }
+
+// ─── Default form states ──────────────────────────────────────────────────────
+
+const defaultTxForm = () => ({
+  fromUserId: "",
+  toUserId: "",
+  amount: "",
+  note: "",
+  type: "send",
+  status: "completed",
+  date: nowLocal(),
+  updateBalances: true,
+});
+
+const defaultCaseForm = () => ({
+  userId: "",
+  transactionId: "",
+  category: "",
+  description: "",
+  status: "open",
+  date: nowLocal(),
+});
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Admin() {
   const { user } = useAuth();
@@ -98,13 +128,19 @@ export default function Admin() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
-  // edit balance
   const [editUser, setEditUser] = useState<any>(null);
   const [editBalance, setEditBalance] = useState("");
 
-  // dispute editor
   const [editDispute, setEditDispute] = useState<any>(null);
   const [disputeForm, setDisputeForm] = useState({ status: "", resolution: "", adminNote: "" });
+
+  // Create transaction dialog
+  const [createTxOpen, setCreateTxOpen] = useState(false);
+  const [txForm, setTxForm] = useState(defaultTxForm());
+
+  // Create case dialog
+  const [createCaseOpen, setCreateCaseOpen] = useState(false);
+  const [caseForm, setCaseForm] = useState(defaultCaseForm());
 
   if (!user || !(user as any).isAdmin) {
     setLocation("/dashboard");
@@ -158,6 +194,17 @@ export default function Admin() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const createTxMut = useMutation({
+    mutationFn: (data: any) => apiFetch("/transactions/create", { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      inv(["admin-transactions", "admin-stats", "admin-users"]);
+      setCreateTxOpen(false);
+      setTxForm(defaultTxForm());
+      toast.success("Transaction created");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const updateDisputeMut = useMutation({
     mutationFn: ({ caseId, ...body }: any) => apiFetch(`/disputes/${caseId}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: () => { inv(["admin-disputes", "admin-stats"]); setEditDispute(null); toast.success("Case updated"); },
@@ -167,6 +214,17 @@ export default function Admin() {
   const deleteDisputeMut = useMutation({
     mutationFn: (caseId: string) => apiFetch(`/disputes/${caseId}`, { method: "DELETE" }),
     onSuccess: () => { inv(["admin-disputes", "admin-stats"]); toast.success("Case deleted"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const createCaseMut = useMutation({
+    mutationFn: (data: any) => apiFetch("/disputes/create", { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      inv(["admin-disputes", "admin-stats"]);
+      setCreateCaseOpen(false);
+      setCaseForm(defaultCaseForm());
+      toast.success("Case initiated");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -183,12 +241,16 @@ export default function Admin() {
     [d.caseId, d.user?.email, d.transactionId, d.category, d.status].some((s: string) => s?.toLowerCase().includes(q))
   );
 
+  const nonAdminUsers = (users as any[]).filter((u: any) => !u.isAdmin);
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Full read & write access to all platform data</p>
+          <p className="text-sm text-gray-500 mt-1">Full read &amp; write access to all platform data</p>
         </div>
         <Badge className="bg-[#003087] text-white px-3 py-1">Admin</Badge>
       </div>
@@ -219,7 +281,9 @@ export default function Admin() {
         {/* ── Users tab ── */}
         <TabsContent value="users">
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">All Users ({filteredUsers.length})</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">All Users ({filteredUsers.length})</CardTitle>
+            </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -238,13 +302,13 @@ export default function Admin() {
                       <tr><td colSpan={6} className="text-center py-8 text-gray-400">Loading...</td></tr>
                     ) : filteredUsers.length === 0 ? (
                       <tr><td colSpan={6} className="text-center py-8 text-gray-400">No users found</td></tr>
-                    ) : filteredUsers.map((u: any) => (
+                    ) : (filteredUsers as any[]).map((u: any) => (
                       <tr key={u.id} className="border-b hover:bg-gray-50">
                         <td className="px-4 py-3 font-medium">
                           {u.firstName} {u.lastName}
                           {u.isAdmin && <Badge className="ml-2 text-xs bg-[#003087] text-white border-none">Admin</Badge>}
                         </td>
-                        <td className="px-4 py-3 text-gray-600">{u.email}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs">{u.email}</td>
                         <td className="px-4 py-3 font-semibold text-[#003087]">${Number(u.balance).toFixed(2)}</td>
                         <td className="px-4 py-3">
                           {u.isSuspended
@@ -262,7 +326,9 @@ export default function Admin() {
                               <Button size="sm" variant="outline"
                                 className={`h-7 px-2 text-xs ${u.isSuspended ? "text-green-600 border-green-300" : "text-orange-600 border-orange-300"}`}
                                 onClick={() => suspendMut.mutate({ userId: u.id, suspend: !u.isSuspended })}>
-                                {u.isSuspended ? <><Check size={11} className="mr-1" />Unsuspend</> : <><X size={11} className="mr-1" />Suspend</>}
+                                {u.isSuspended
+                                  ? <><Check size={11} className="mr-1" />Unsuspend</>
+                                  : <><X size={11} className="mr-1" />Suspend</>}
                               </Button>
                               <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-red-600 border-red-300"
                                 onClick={() => { if (confirm(`Delete ${u.firstName}?`)) deleteUserMut.mutate(u.id); }}>
@@ -282,8 +348,16 @@ export default function Admin() {
 
         {/* ── Transactions tab ── */}
         <TabsContent value="transactions">
+          <div className="flex justify-end mb-3">
+            <Button className="bg-[#0070ba] hover:bg-[#003087] rounded-full h-9 px-4 text-sm"
+              onClick={() => { setTxForm(defaultTxForm()); setCreateTxOpen(true); }}>
+              <Plus size={15} className="mr-2" /> Create Transaction
+            </Button>
+          </div>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">All Transactions ({filteredTx.length})</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">All Transactions ({filteredTx.length})</CardTitle>
+            </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -303,14 +377,14 @@ export default function Admin() {
                       <tr><td colSpan={7} className="text-center py-8 text-gray-400">Loading...</td></tr>
                     ) : filteredTx.length === 0 ? (
                       <tr><td colSpan={7} className="text-center py-8 text-gray-400">No transactions</td></tr>
-                    ) : filteredTx.map((t: any) => (
+                    ) : (filteredTx as any[]).map((t: any) => (
                       <tr key={t.id} className="border-b hover:bg-gray-50">
                         <td className="px-4 py-3 font-mono text-xs text-gray-500">{t.transactionId}</td>
                         <td className="px-4 py-3 text-xs">{t.fromUser?.email || t.fromUserId}</td>
                         <td className="px-4 py-3 text-xs">{t.toUser?.email || t.toUserId}</td>
                         <td className="px-4 py-3 font-semibold">${Number(t.amount).toFixed(2)}</td>
                         <td className="px-4 py-3"><TxStatusBadge status={t.status} /></td>
-                        <td className="px-4 py-3 text-xs text-gray-400">{format(new Date(t.createdAt), "MMM d, HH:mm")}</td>
+                        <td className="px-4 py-3 text-xs text-gray-400">{format(new Date(t.createdAt), "MMM d, yyyy HH:mm")}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
                             {t.status === "pending" && (
@@ -342,8 +416,16 @@ export default function Admin() {
 
         {/* ── Disputes tab ── */}
         <TabsContent value="disputes">
+          <div className="flex justify-end mb-3">
+            <Button className="bg-[#0070ba] hover:bg-[#003087] rounded-full h-9 px-4 text-sm"
+              onClick={() => { setCaseForm(defaultCaseForm()); setCreateCaseOpen(true); }}>
+              <Plus size={15} className="mr-2" /> Initiate Case
+            </Button>
+          </div>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">All Dispute Cases ({filteredDisputes.length})</CardTitle></CardHeader>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">All Dispute Cases ({filteredDisputes.length})</CardTitle>
+            </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -363,14 +445,14 @@ export default function Admin() {
                       <tr><td colSpan={7} className="text-center py-8 text-gray-400">Loading...</td></tr>
                     ) : filteredDisputes.length === 0 ? (
                       <tr><td colSpan={7} className="text-center py-8 text-gray-400">No cases found</td></tr>
-                    ) : filteredDisputes.map((d: any) => (
+                    ) : (filteredDisputes as any[]).map((d: any) => (
                       <tr key={d.id} className="border-b hover:bg-gray-50">
                         <td className="px-4 py-3 font-mono text-xs font-semibold text-[#003087]">{d.caseId}</td>
                         <td className="px-4 py-3 text-xs">{d.user?.email || d.userId}</td>
                         <td className="px-4 py-3 font-mono text-xs text-gray-500">{d.transactionId}</td>
                         <td className="px-4 py-3 text-xs">{CATEGORY_LABELS[d.category] || d.category}</td>
                         <td className="px-4 py-3"><DisputeStatus status={d.status} /></td>
-                        <td className="px-4 py-3 text-xs text-gray-400">{format(new Date(d.createdAt), "MMM d, yyyy")}</td>
+                        <td className="px-4 py-3 text-xs text-gray-400">{format(new Date(d.createdAt), "MMM d, yyyy HH:mm")}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
                             <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
@@ -396,13 +478,14 @@ export default function Admin() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit balance dialog */}
+      {/* ── Edit balance dialog ── */}
       <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Balance — {editUser?.firstName} {editUser?.lastName}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <Label>New Balance (USD)</Label>
-            <Input type="number" step="0.01" min="0" value={editBalance} onChange={(e) => setEditBalance(e.target.value)} />
+            <Input type="number" step="0.01" min="0" value={editBalance}
+              onChange={(e) => setEditBalance(e.target.value)} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>
@@ -418,17 +501,224 @@ export default function Admin() {
         </DialogContent>
       </Dialog>
 
-      {/* Review dispute dialog */}
+      {/* ── Create Transaction dialog ── */}
+      <Dialog open={createTxOpen} onOpenChange={(o) => { if (!o) setCreateTxOpen(false); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Create Transaction</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="col-span-2 grid grid-cols-2 gap-4">
+              <div>
+                <Label>From (Sender)</Label>
+                <Select value={txForm.fromUserId} onValueChange={(v) => setTxForm({ ...txForm, fromUserId: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select user" /></SelectTrigger>
+                  <SelectContent>
+                    {nonAdminUsers.map((u: any) => (
+                      <SelectItem key={u.id} value={String(u.id)}>
+                        {u.firstName} {u.lastName} (${Number(u.balance).toFixed(2)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>To (Recipient)</Label>
+                <Select value={txForm.toUserId} onValueChange={(v) => setTxForm({ ...txForm, toUserId: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select user" /></SelectTrigger>
+                  <SelectContent>
+                    {nonAdminUsers.filter((u: any) => String(u.id) !== txForm.fromUserId).map((u: any) => (
+                      <SelectItem key={u.id} value={String(u.id)}>
+                        {u.firstName} {u.lastName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Amount (USD)</Label>
+              <Input className="mt-1" type="number" step="0.01" min="0.01" placeholder="0.00"
+                value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} />
+            </div>
+            <div>
+              <Label>Type</Label>
+              <Select value={txForm.type} onValueChange={(v) => setTxForm({ ...txForm, type: v })}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="send">Send</SelectItem>
+                  <SelectItem value="request">Request</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Status</Label>
+              <Select value={txForm.status} onValueChange={(v) => setTxForm({ ...txForm, status: v })}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="declined">Declined</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Date &amp; Time</Label>
+              <Input className="mt-1" type="datetime-local" value={txForm.date}
+                onChange={(e) => setTxForm({ ...txForm, date: e.target.value })} />
+            </div>
+
+            <div className="col-span-2">
+              <Label>Note (optional)</Label>
+              <Input className="mt-1" placeholder="Transaction note..."
+                value={txForm.note} onChange={(e) => setTxForm({ ...txForm, note: e.target.value })} />
+            </div>
+
+            <div className="col-span-2 flex items-center gap-2">
+              <input type="checkbox" id="updateBal" checked={txForm.updateBalances}
+                onChange={(e) => setTxForm({ ...txForm, updateBalances: e.target.checked })}
+                className="rounded" />
+              <label htmlFor="updateBal" className="text-sm text-gray-600 cursor-pointer">
+                Update account balances (deduct from sender / credit recipient)
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateTxOpen(false)}>Cancel</Button>
+            <Button className="bg-[#0070ba] hover:bg-[#003087]" disabled={createTxMut.isPending}
+              onClick={() => {
+                if (!txForm.fromUserId || !txForm.toUserId || !txForm.amount) {
+                  toast.error("From, To and Amount are required"); return;
+                }
+                createTxMut.mutate({
+                  fromUserId: parseInt(txForm.fromUserId),
+                  toUserId: parseInt(txForm.toUserId),
+                  amount: parseFloat(txForm.amount),
+                  note: txForm.note || undefined,
+                  type: txForm.type,
+                  status: txForm.status,
+                  date: txForm.date ? new Date(txForm.date).toISOString() : undefined,
+                  updateBalances: txForm.updateBalances,
+                });
+              }}>
+              {createTxMut.isPending ? "Creating..." : "Create Transaction"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Initiate Case dialog ── */}
+      <Dialog open={createCaseOpen} onOpenChange={(o) => { if (!o) setCreateCaseOpen(false); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Initiate Resolution Case</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>User</Label>
+                <Select value={caseForm.userId} onValueChange={(v) => setCaseForm({ ...caseForm, userId: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select user" /></SelectTrigger>
+                  <SelectContent>
+                    {(users as any[]).map((u: any) => (
+                      <SelectItem key={u.id} value={String(u.id)}>
+                        {u.firstName} {u.lastName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Date &amp; Time</Label>
+                <Input className="mt-1" type="datetime-local" value={caseForm.date}
+                  onChange={(e) => setCaseForm({ ...caseForm, date: e.target.value })} />
+              </div>
+            </div>
+
+            <div>
+              <Label>Transaction ID</Label>
+              <Input className="mt-1" placeholder="TXN-..." value={caseForm.transactionId}
+                onChange={(e) => setCaseForm({ ...caseForm, transactionId: e.target.value })} />
+              {transactions.length > 0 && (
+                <div className="mt-1">
+                  <Select onValueChange={(v) => setCaseForm({ ...caseForm, transactionId: v })}>
+                    <SelectTrigger className="text-xs h-8"><SelectValue placeholder="Or pick from list" /></SelectTrigger>
+                    <SelectContent>
+                      {(transactions as any[]).map((t: any) => (
+                        <SelectItem key={t.transactionId} value={t.transactionId}>
+                          {t.transactionId} — ${Number(t.amount).toFixed(2)} ({t.fromUser?.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Category</Label>
+                <Select value={caseForm.category} onValueChange={(v) => setCaseForm({ ...caseForm, category: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(CATEGORY_LABELS).map(([val, label]) => (
+                      <SelectItem key={val} value={val}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Initial Status</Label>
+                <Select value={caseForm.status} onValueChange={(v) => setCaseForm({ ...caseForm, status: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="under_review">Under Review</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Description</Label>
+              <Textarea className="mt-1" rows={3} placeholder="Describe the issue..."
+                value={caseForm.description}
+                onChange={(e) => setCaseForm({ ...caseForm, description: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateCaseOpen(false)}>Cancel</Button>
+            <Button className="bg-[#0070ba] hover:bg-[#003087]" disabled={createCaseMut.isPending}
+              onClick={() => {
+                if (!caseForm.userId || !caseForm.transactionId || !caseForm.category || !caseForm.description) {
+                  toast.error("All fields except date are required"); return;
+                }
+                createCaseMut.mutate({
+                  userId: parseInt(caseForm.userId),
+                  transactionId: caseForm.transactionId,
+                  category: caseForm.category,
+                  description: caseForm.description,
+                  status: caseForm.status,
+                  date: caseForm.date ? new Date(caseForm.date).toISOString() : undefined,
+                });
+              }}>
+              {createCaseMut.isPending ? "Creating..." : "Initiate Case"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Review dispute dialog ── */}
       <Dialog open={!!editDispute} onOpenChange={(o) => !o && setEditDispute(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Review Case — {editDispute?.caseId}</DialogTitle></DialogHeader>
           {editDispute && (
             <div className="space-y-4 py-2">
-              <div className="bg-gray-50 rounded-md p-3 text-sm">
+              <div className="bg-gray-50 rounded-md p-3 text-sm space-y-1">
                 <p><strong>User:</strong> {editDispute.user?.email}</p>
                 <p><strong>Transaction:</strong> {editDispute.transactionId}</p>
                 <p><strong>Category:</strong> {CATEGORY_LABELS[editDispute.category]}</p>
-                <p className="mt-2 text-gray-600">{editDispute.description}</p>
+                <p className="mt-2 text-gray-600 text-xs">{editDispute.description}</p>
               </div>
               <div>
                 <Label>Status</Label>

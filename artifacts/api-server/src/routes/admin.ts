@@ -117,6 +117,59 @@ router.delete("/admin/users/:userId", requireAuth, requireAdmin, async (req, res
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
 
+// Admin: create a transaction on any account with a custom date
+router.post("/admin/transactions/create", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const { fromUserId, toUserId, amount, note, type, status, date, updateBalances } = req.body;
+
+  if (!fromUserId || !toUserId || !amount || isNaN(parseFloat(amount))) {
+    res.status(400).json({ error: "fromUserId, toUserId and amount are required" });
+    return;
+  }
+  if (fromUserId === toUserId) {
+    res.status(400).json({ error: "Sender and recipient must be different" });
+    return;
+  }
+
+  const [fromUser] = await db.select().from(usersTable).where(eq(usersTable.id, fromUserId));
+  const [toUser]   = await db.select().from(usersTable).where(eq(usersTable.id, toUserId));
+  if (!fromUser || !toUser) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const txStatus = status || "completed";
+  const txDate   = date ? new Date(date) : new Date();
+  const { v4: uuidv4 } = await import("uuid");
+  const transactionId  = `TXN-${uuidv4().toUpperCase().slice(0, 12)}`;
+  const amtStr = parseFloat(amount).toFixed(2);
+
+  const [tx] = await db
+    .insert(transactionsTable)
+    .values({
+      transactionId,
+      fromUserId,
+      toUserId,
+      amount: amtStr,
+      status: txStatus,
+      type: type || "send",
+      note: note || null,
+      createdAt: txDate,
+    })
+    .returning();
+
+  // Optionally update balances
+  if (updateBalances !== false) {
+    if (txStatus === "completed") {
+      await db.update(usersTable).set({ balance: sql`balance - ${amtStr}::numeric` }).where(eq(usersTable.id, fromUserId));
+      await db.update(usersTable).set({ balance: sql`balance + ${amtStr}::numeric` }).where(eq(usersTable.id, toUserId));
+    } else if (txStatus === "pending") {
+      await db.update(usersTable).set({ balance: sql`balance - ${amtStr}::numeric` }).where(eq(usersTable.id, fromUserId));
+    }
+  }
+
+  res.status(201).json({ ...tx, amount: parseFloat(tx.amount) });
+});
+
 router.get("/admin/transactions", requireAuth, requireAdmin, async (_req, res): Promise<void> => {
   const txs = await db
     .select()
@@ -225,6 +278,36 @@ router.delete("/admin/transactions/:txId", requireAuth, requireAdmin, async (req
 });
 
 // ─── Disputes / Resolution Centre ────────────────────────────────────────────
+
+// Admin: initiate a dispute case for any user with a custom date
+router.post("/admin/disputes/create", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const { userId, transactionId, category, description, status, date } = req.body;
+
+  if (!userId || !transactionId || !category || !description) {
+    res.status(400).json({ error: "userId, transactionId, category, description are required" });
+    return;
+  }
+
+  const caseDate = date ? new Date(date) : new Date();
+  const { v4: uuidv4 } = await import("uuid");
+  const caseId = `CASE-${uuidv4().toUpperCase().slice(0, 10)}`;
+
+  const [dispute] = await db
+    .insert(disputesTable)
+    .values({
+      caseId,
+      userId,
+      transactionId,
+      category,
+      description,
+      status: status || "open",
+      createdAt: caseDate,
+      updatedAt: caseDate,
+    })
+    .returning();
+
+  res.status(201).json(dispute);
+});
 
 router.get("/admin/disputes", requireAuth, requireAdmin, async (_req, res): Promise<void> => {
   const disputes = await db
