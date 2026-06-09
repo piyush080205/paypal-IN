@@ -16,6 +16,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/request", label: "Request" },
     { href: "/wallet", label: "Wallet" },
     { href: "/activity", label: "Activity" },
+    { href: "/resolution-centre", label: "Resolution Centre" },
   ];
   const links = (user as any)?.isAdmin
     ? [...baseLinks, { href: "/admin", label: "Admin" }]
@@ -28,8 +29,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
               <Link href="/dashboard" className="flex items-center gap-2 text-white font-bold text-xl">
-                <Logo />
-                <span>PayPal</span>
+                <Logo className="h-8 w-8" />
+                <span className="font-extrabold tracking-tight">PayPal</span>
               </Link>
               
               <nav className="hidden md:flex gap-1">
@@ -37,7 +38,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <Link 
                     key={link.href} 
                     href={link.href}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors hover:bg-white/20 ${location === link.href ? "bg-white/10" : ""}`}
+                    className={`px-3 py-2 rounded-full text-sm font-medium transition-colors hover:bg-white/20 ${location === link.href ? "bg-white/10" : ""}`}
                   >
                     {link.label}
                   </Link>
@@ -90,8 +91,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      <footer className="py-6 text-center text-sm text-gray-400 border-t bg-white mt-auto">
-        <p>&copy; {new Date().getFullYear()} PayPal, Inc. All rights reserved.</p>
+      <footer className="bg-white border-t mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 py-5 border-b border-gray-200">
+            <div className="flex items-center gap-6">
+              <span className="font-extrabold text-[#003087] text-xl tracking-tight">PayPal</span>
+              <nav className="flex gap-6">
+                <a href="#" className="text-sm text-gray-700 hover:text-[#0070ba] font-medium">Help</a>
+                <a href="#" className="text-sm text-gray-700 hover:text-[#0070ba] font-medium">Contact</a>
+                <a href="#" className="text-sm text-gray-700 hover:text-[#0070ba] font-medium">Security</a>
+              </nav>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-4 py-4">
+            <p className="text-xs text-gray-500">©1999-{new Date().getFullYear()} PayPal, Inc. All rights reserved.</p>
+            <nav className="flex gap-5">
+              <a href="#" className="text-xs text-gray-500 hover:text-[#0070ba]">Privacy</a>
+              <a href="#" className="text-xs text-gray-500 hover:text-[#0070ba]">Cookies</a>
+              <a href="#" className="text-xs text-gray-500 hover:text-[#0070ba]">Legal</a>
+            </nav>
+          </div>
+        </div>
       </footer>
     </div>
   );

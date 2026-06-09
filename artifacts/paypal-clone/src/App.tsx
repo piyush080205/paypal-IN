@@ -19,6 +19,7 @@ import Wallet from "@/pages/wallet";
 import Requests from "@/pages/requests";
 import Profile from "@/pages/profile";
 import Admin from "@/pages/admin";
+import ResolutionCentre from "@/pages/resolution-centre";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ function Router() {
       <Route path="/requests" component={() => <ProtectedRoute component={Requests} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
       <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
+      <Route path="/resolution-centre" component={() => <ProtectedRoute component={ResolutionCentre} />} />
       
       <Route component={NotFound} />
     </Switch>
