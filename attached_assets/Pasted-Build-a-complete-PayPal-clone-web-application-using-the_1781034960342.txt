@@ -1,0 +1,42 @@
+Build a complete PayPal clone web application using the MERN stack (MongoDB, Express.js, React, Node.js). This is for my BTech minor project (educational, non‑commercial).
+
+Requirements:
+
+1. Branding:
+   - App name: "PayPal"
+   - Logo: Two overlapping circles in light blue and dark blue (exactly like PayPal's logo)
+   - Color scheme: #0070ba (primary), #003087 (dark), #ffffff (white)
+
+2. UI (exact PayPal look):
+   - Navbar with PayPal logo, "Send", "Request", "Wallet", "Activity", "Profile"
+   - Dashboard: shows balance, "Send money" button, "Request money" button, recent transactions
+   - Transaction details page looks like real PayPal: shows amount, status, date, transaction ID, sender/recipient info
+   - Mobile responsive
+
+3. Features (fully functional):
+   - User signup / login (JWT authentication)
+   - Add/edit bank account or card (dummy – no real payment gateway)
+   - Send money to another registered user (by email or phone)
+   - Request money from another user
+   - Approve or decline money requests
+   - Transaction history with search and filters
+   - Email notifications using Nodemailer for: money received, money sent, request received
+   - "Pending" status for bank transfers (simulate eCheck clearing)
+   - Download receipt as PDF
+
+4. Backend (Node.js + Express + MongoDB):
+   - User schema: name, email, password (hashed), balance, bank accounts array
+   - Transaction schema: from, to, amount, status (pending/completed/declined), type (send/request), createdAt, transactionID (unique)
+   - Request schema: from, to, amount, status, createdAt
+   - APIs: register, login, sendMoney, requestMoney, approveRequest, declineRequest, getTransactions, getUserBalance
+
+5. Frontend (React + Tailwind CSS):
+   - Use React Router for navigation
+   - Context API or Redux for user state
+   - Axios for API calls
+   - Toast notifications for success/error messages
+
+6. Legal disclaimer (in footer):
+   "This is a demo project for educational purposes only. Not affiliated with or endorsed by PayPal Holdings, Inc."
+
+Generate the complete code with proper folder structure, package.json files, and a README with setup instructions.

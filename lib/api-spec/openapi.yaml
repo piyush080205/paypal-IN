@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: PayPal Clone API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User operations
+  - name: transactions
+    description: Transaction operations
+  - name: requests
+    description: Money request operations
+  - name: payment-methods
+    description: Payment method operations
+  - name: dashboard
+    description: Dashboard summary operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +36,446 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user by ID
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPublic"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/search:
+    get:
+      operationId: searchUsers
+      tags: [users]
+      summary: Search users by email
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserPublic"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /transactions:
+    get:
+      operationId: getTransactions
+      tags: [transactions]
+      summary: Get transaction history
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [sent, received, all]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, completed, declined]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Transactions list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionList"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /transactions/{transactionId}:
+    get:
+      operationId: getTransaction
+      tags: [transactions]
+      summary: Get transaction by ID
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Transaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /transactions/send:
+    post:
+      operationId: sendMoney
+      tags: [transactions]
+      summary: Send money to another user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMoneyInput"
+      responses:
+        "201":
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /money-requests:
+    get:
+      operationId: getMoneyRequests
+      tags: [requests]
+      summary: Get money requests (sent and received)
+      parameters:
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [sent, received, all]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, declined]
+      responses:
+        "200":
+          description: Money requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MoneyRequest"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /money-requests/create:
+    post:
+      operationId: requestMoney
+      tags: [requests]
+      summary: Request money from another user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestMoneyInput"
+      responses:
+        "201":
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoneyRequest"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /money-requests/{requestId}/approve:
+    post:
+      operationId: approveRequest
+      tags: [requests]
+      summary: Approve a money request
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Request approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoneyRequest"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /money-requests/{requestId}/decline:
+    post:
+      operationId: declineRequest
+      tags: [requests]
+      summary: Decline a money request
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Request declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoneyRequest"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payment-methods:
+    get:
+      operationId: getPaymentMethods
+      tags: [payment-methods]
+      summary: Get user's payment methods
+      responses:
+        "200":
+          description: Payment methods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentMethod"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: addPaymentMethod
+      tags: [payment-methods]
+      summary: Add a payment method
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentMethodInput"
+      responses:
+        "201":
+          description: Payment method added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payment-methods/{methodId}:
+    delete:
+      operationId: removePaymentMethod
+      tags: [payment-methods]
+      summary: Remove a payment method
+      parameters:
+        - name: methodId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +486,238 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    RegisterInput:
+      type: object
+      required: [firstName, lastName, email, password]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        phone:
+          type: ["string", "null"]
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    User:
+      type: object
+      required: [id, firstName, lastName, email, balance, createdAt]
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        balance:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    UserPublic:
+      type: object
+      required: [id, firstName, lastName, email]
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+
+    AuthResponse:
+      type: object
+      required: [user, token]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+
+    DashboardSummary:
+      type: object
+      required: [balance, totalSent, totalReceived, pendingCount, recentTransactions]
+      properties:
+        balance:
+          type: number
+        totalSent:
+          type: number
+        totalReceived:
+          type: number
+        pendingCount:
+          type: integer
+        recentTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+
+    Transaction:
+      type: object
+      required: [id, transactionId, fromUserId, toUserId, amount, status, type, createdAt]
+      properties:
+        id:
+          type: integer
+        transactionId:
+          type: string
+        fromUserId:
+          type: integer
+        toUserId:
+          type: integer
+        fromUser:
+          $ref: "#/components/schemas/UserPublic"
+        toUser:
+          $ref: "#/components/schemas/UserPublic"
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [pending, completed, declined]
+        type:
+          type: string
+          enum: [send, request]
+        note:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    TransactionList:
+      type: object
+      required: [transactions, total, page, limit]
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    SendMoneyInput:
+      type: object
+      required: [toEmail, amount]
+      properties:
+        toEmail:
+          type: string
+          format: email
+        amount:
+          type: number
+          minimum: 0.01
+        note:
+          type: ["string", "null"]
+        paymentType:
+          type: string
+          enum: [instant, bank_transfer]
+
+    MoneyRequest:
+      type: object
+      required: [id, fromUserId, toUserId, amount, status, createdAt]
+      properties:
+        id:
+          type: integer
+        fromUserId:
+          type: integer
+        toUserId:
+          type: integer
+        fromUser:
+          $ref: "#/components/schemas/UserPublic"
+        toUser:
+          $ref: "#/components/schemas/UserPublic"
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [pending, approved, declined]
+        note:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    RequestMoneyInput:
+      type: object
+      required: [fromEmail, amount]
+      properties:
+        fromEmail:
+          type: string
+          format: email
+        amount:
+          type: number
+          minimum: 0.01
+        note:
+          type: ["string", "null"]
+
+    PaymentMethod:
+      type: object
+      required: [id, type, label, last4, createdAt]
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [bank, card]
+        label:
+          type: string
+        last4:
+          type: string
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    PaymentMethodInput:
+      type: object
+      required: [type, label, last4]
+      properties:
+        type:
+          type: string
+          enum: [bank, card]
+        label:
+          type: string
+        last4:
+          type: string
+        isDefault:
+          type: boolean
